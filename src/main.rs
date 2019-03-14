@@ -9,7 +9,7 @@ mod types;
 mod ui;
 
 #[allow(unused_imports)]
-use audioengine::types::KeyAction;
+use audioengine::types::{KeyAction, SignalBuffer};
 
 #[allow(unused_imports)]
 use ui::Ui;
@@ -19,6 +19,9 @@ use std::f64::consts::PI;
 
 #[allow(unused_variables)]
 fn main() -> Result<(), Error> {
+    let (sender, receiver) = std::sync::mpsc::channel::<SignalBuffer>();
+    let mut signal_buffer = SignalBuffer::new();
+
     let audioengine = audioengine::EngineController::start();
 
     let sample_rate = audioengine.sample_rate;
@@ -66,7 +69,16 @@ fn main() -> Result<(), Error> {
             ret
         };
 
-        clamp(0.01_f64, 0.99_f64, sine_wave)
+        let result = clamp(0.01_f64, 0.99_f64, sine_wave);
+
+        signal_buffer.push(sine_wave);
+
+        if sine > PI {
+            sender.send(signal_buffer.clone()).expect("Unable to send graph data to UI");
+            signal_buffer.clear();
+        }
+
+        result
     };
 
     audioengine.set_processor_function(Box::new(synth));
@@ -77,7 +89,7 @@ fn main() -> Result<(), Error> {
         audioengine,
         None,
         None,
-        None,
+        Some(receiver),
     );
 
     window.show();
